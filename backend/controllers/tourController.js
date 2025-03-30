@@ -1,71 +1,87 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-exports.loginUser = async (req, res) => {
-    try {
-        console.log("Login request received", req.body);  // Debugging
-        const { email, password } = req.body;
-        
-        // Check if user exists
-        const user = await User.findOne({ email });
-        if (!user) return res.status(400).json({ message: "User not found" });
+const Tour = require('../models/Tour');
 
-        // Check password
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
+// Book a Tour
+const bookTour = async (req, res) => {
+  const { customerName, email, tourPackage, price } = req.body;
 
-        // Generate token
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        res.status(200).json({ token, user });
-    } catch (err) {
-        console.error("Login error:", err);
-        res.status(500).json({ message: "Server error" });
+  try {
+    const existingBooking = await Tour.findOne({ email, tourPackage });
+    if (existingBooking) {
+      return res.status(400).json({ message: 'Tour already booked for this customer' });
     }
-};
-const Task = require('../models/Task');
-const getTasks = async (req, res) => {
-try {
-    const tasks = await Task.find({ userId: req.user.id });
-    res.json(tasks);
-}catch (error){
+
+    const booking = new Tour({ customerName, email, tourPackage, price });
+    await booking.save();
+    res.status(201).json(booking);
+  } catch (error) {
     res.status(500).json({ message: error.message });
-}
+  }
 };
 
-const addTask = async (req, res) => {
-    const { title, description, deadline } = req.body;
-    try {
-    const task = await Task.create({ userId: req.user.id, title, description, deadline });
-    res.status(201).json(task);
-    } catch (error) {
-    res.status(500).json({ message: error.message });
+// Update Tour Booking
+const updateTour = async (req, res) => {
+  const { customerName, email, tourPackage, price } = req.body;
+
+  try {
+    const booking = await Tour.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
     }
+
+    booking.customerName = customerName || booking.customerName;
+    booking.email = email || booking.email;
+    booking.tourPackage = tourPackage || booking.tourPackage;
+    booking.price = price || booking.price;
+
+    const updatedBooking = await booking.save();
+    res.json(updatedBooking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
-const updateTask = async (req, res) => {
-    const { title, description, completed, deadline } = req.body;
-    try {
-    const task = await Task.findById(req.params.id);
-    if (!task) return res.status(404).json({ message: 'Task not found' });
-    task.title = title || task.title;
-    task.description = description || task.description;
-    task.completed = completed ?? task.completed;
-    task.deadline = deadline || task.deadline;
-    const updatedTask = await task.save();
-    res.json(updatedTask);
-    } catch (error) {
-    res.status(500).json({ message: error.message });
+// Cancel Tour Booking
+const cancelTour = async (req, res) => {
+  try {
+    const booking = await Tour.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
     }
+
+    await booking.remove();
+    res.json({ message: 'Tour booking canceled' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
-    
-const deleteTask = async (req, res) => {
-    try {
-        const task = await Task.findById(req.params.id);
-        if (!task) return res.status(404).json({ message: 'Task not found' });
-        await task.remove();
-        res.json({ message: 'Task deleted' });
-        } catch (error) {
-        res.status(500).json({ message: error.message });
-        }
-        };
-        module.exports = { getTasks, addTask, updateTask, deleteTask };
+
+// Get All Tour Bookings
+const getBookings = async (req, res) => {
+  try {
+    const bookings = await Tour.find();
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get Specific Booking
+const getBooking = async (req, res) => {
+  try {
+    const booking = await Tour.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+    res.json(booking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  bookTour,
+  updateTour,
+  cancelTour,
+  getBookings,
+  getBooking
+};
